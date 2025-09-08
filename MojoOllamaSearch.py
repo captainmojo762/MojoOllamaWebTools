@@ -117,7 +117,7 @@ class WebSearchTool:
             print(f"Search error: {e}")
             return []
     
-    def extract_content(self, url: str) -> str:
+    def extract_webpage_content(self, url: str) -> str:
         """Extract text content from a webpage"""
         try:
             response = self.session.get(url, timeout=10)
@@ -273,7 +273,7 @@ class OllamaWebAssistant:
         def get_webpage_content(url: str) -> str:
             """Extract and return the text content from a specific webpage."""
             print(f"📄 Extracting content from: {url}")
-            content = self.web_search.extract_content(url)
+            content = self.web_search.extract_webpage_content(url)
             return content if content else "Could not extract content from this URL."
         
         def get_current_datetime() -> str:

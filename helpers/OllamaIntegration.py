@@ -26,9 +26,6 @@ REACT_IMPORT_ERROR = None
 try:
     from llama_index.core.agent import ReActAgent
     REACT_AGENT = ReActAgent
-    print("✓ ReActAgent imported from llama_index.core.agent")
-    print(f"  Available methods: {[method for method in dir(ReActAgent) if not method.startswith('_')]}")
-    print(f"  Has from_tools: {hasattr(ReActAgent, 'from_tools')}")
 except ImportError as e:
     print(f"✗ ReActAgent import from core.agent failed: {e}")
     REACT_IMPORT_ERROR = str(e)
@@ -37,9 +34,7 @@ if REACT_AGENT is None:
     try:
         from llama_index.agent.react import ReActAgent  # type: ignore
         REACT_AGENT = ReActAgent
-        print("✓ ReActAgent imported from llama_index.agent.react")
-        print(f"  Available methods: {[method for method in dir(ReActAgent) if not method.startswith('_')]}")
-        print(f"  Has from_tools: {hasattr(ReActAgent, 'from_tools')}")
+
     except ImportError as e:
         print(f"✗ ReActAgent import from agent.react failed: {e}")
         REACT_IMPORT_ERROR = str(e)
@@ -85,7 +80,18 @@ class OllamaIntegration:
         print("🔧 Creating agent...")
         
         def search_web(query: str) -> str:
-            """Search the web for current information about a given topic."""
+            """
+            A function to perform a web search and return formatted results.
+            Call this when you need to find up-to-date information, or otherwise 
+            can't answer a user question. Formulate your response based on the search 
+            results.
+
+            args:
+                query (str): The search query string.
+            
+            returns:
+                str: Formatted search results including titles, snippets, and URLs.
+            """
             print(f"🔍 Searching web for: {query}")
             results = self.web_search.search_brave(query, max_results=3)
             
@@ -104,13 +110,31 @@ class OllamaIntegration:
             return "\n".join(formatted_results)
         
         def get_webpage_content(url: str) -> str:
-            """Extract and return the text content from a specific webpage."""
+            """
+            Extracts and returns the text content from a specific webpage URL.
+            Use this tool when:
+            - Asked to read or analyze a specific webpage
+            - Given a URL to extract information from
+            - Need to get the full content of an article
+            
+            Args:
+                url (str): The full webpage URL (must start with http:// or https://)
+            
+            Returns:
+                str: The extracted text content from the webpage
+            
+            Example:
+                get_webpage_content("https://example.com/article")
+            """
             print(f"📄 Extracting content from: {url}")
-            content = self.web_search.extract_content(url)
+            content = self.web_search.extract_webpage_content(url)
             return content if content else "Could not extract content from this URL."
         
         def get_current_datetime() -> str:
-            """Get the current date and time."""
+            """
+            A function to return todays date and time.
+            Call this before any other functions if you are unaware of the current date or time.
+            """
             return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # Convert functions to LlamaIndex tools
@@ -120,7 +144,20 @@ class OllamaIntegration:
         
         tools = [search_tool, webpage_tool, datetime_tool]
         
-        # Test if we can use ReActAgent
+        # Add custom system prompt
+        system_prompt = """You are an AI assistant with access to several tools:
+        - search_web: Use this for finding current information or when you need to search the internet
+        - get_webpage_content: Use this when given a specific URL or asked to analyze a webpage
+        - get_current_datetime: Use this to check the current date/time
+        
+        Important:
+        1. When a user provides a URL or asks about a specific webpage, ALWAYS use get_webpage_content
+        2. For general information needs, use search_web
+        3. Always check the current time with get_current_datetime before searching for current events
+        
+        Think carefully about which tool best fits the user's request."""
+
+        # Create agent with custom prompt
         if REACT_AGENT and hasattr(REACT_AGENT, 'from_tools'):
             try:
                 print("🧪 Attempting to create ReActAgent...")
@@ -128,7 +165,8 @@ class OllamaIntegration:
                     tools,
                     llm=self.llm,
                     verbose=True,
-                    max_iterations=10
+                    max_iterations=10,
+                    system_prompt=system_prompt  # Add the custom prompt
                 )
                 print("✓ ReActAgent created successfully!")
                 return agent
@@ -144,6 +182,15 @@ class OllamaIntegration:
         """Send a message to the assistant and get a response."""
         print(f"\n💬 User: {message}")
         print("🤖 Assistant is thinking...")
+        
+        # Add URL detection
+        url_pattern = r'https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)'
+        urls = re.findall(url_pattern, message)
+        
+        if urls:
+            # If URLs are found, explicitly mention them in the prompt
+            message = f"""This request contains the following URLs that you should analyze using get_webpage_content: {urls}
+            Original request: {message}"""
         
         try:
             response = self.agent.chat(message)

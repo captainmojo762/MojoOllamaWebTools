@@ -132,7 +132,7 @@ class WebSearchHelper:
             return []
         
         
-    def extract_content(self, url: str) -> str:
+    def extract_webpage_content(self, url: str) -> str:
         """Extract text content from a webpage"""
         try:
             response = self.session.get(url, timeout=10)
